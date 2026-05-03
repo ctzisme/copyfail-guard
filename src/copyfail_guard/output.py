@@ -84,21 +84,27 @@ def detection_to_dict(r: DetectionResult) -> dict:
     }
 
 
+def _kernel_upgrade_note(r: DetectionResult) -> str:
+    """Generic prose hint asking the user to update the kernel to a patched version."""
+    threshold = r.kernel_class.patched_threshold if r.kernel_class else None
+    if threshold:
+        return (
+            f"Update the kernel on this system to {threshold} or later (whatever your "
+            "distribution ships once it has integrated the CVE-2026-31431 fix), then reboot."
+        )
+    return (
+        "Update the kernel to a CVE-2026-31431-patched version using your "
+        "distribution's normal update mechanism, then reboot."
+    )
+
+
 def _recommended_actions(r: DetectionResult) -> list[dict]:
     actions: list[dict] = []
     if r.verdict == Verdict.VULNERABLE:
         actions.append({"type": "mitigate", "command": "sudo copyfail-guard fix"})
-        if r.upgrade_command:
-            actions.append({"type": "upgrade", "command": r.upgrade_command})
-        actions.append({"type": "reboot"})
-    elif r.verdict == Verdict.UNMITIGABLE_BUILTIN:
-        if r.upgrade_command:
-            actions.append({"type": "upgrade", "command": r.upgrade_command})
-        actions.append({"type": "reboot"})
-    elif r.verdict == Verdict.MITIGATED:
-        if r.upgrade_command:
-            actions.append({"type": "upgrade", "command": r.upgrade_command})
-        actions.append({"type": "reboot"})
+        actions.append({"type": "upgrade_kernel", "note": _kernel_upgrade_note(r)})
+    elif r.verdict in (Verdict.UNMITIGABLE_BUILTIN, Verdict.MITIGATED):
+        actions.append({"type": "upgrade_kernel", "note": _kernel_upgrade_note(r)})
     return actions
 
 
@@ -111,7 +117,9 @@ def render_detection_text(r: DetectionResult) -> str:
     lines = [f"[copyfail-guard] {CVE_ID} ({CVE_NICKNAME}) — {label}"]
 
     if r.distro is not None:
-        lines.append(f"  Distribution: {r.distro.pretty_name or r.distro.id}  ({r.distro.family} family)")
+        lines.append(
+            f"  Distribution: {r.distro.pretty_name or r.distro.id}  ({r.distro.family} family)"
+        )
     else:
         lines.append("  Distribution: (unknown)")
 
@@ -119,7 +127,10 @@ def render_detection_text(r: DetectionResult) -> str:
         kernel_line = f"  Kernel:       {r.kernel.raw}"
         if r.kernel_class is not None and r.kernel_class.branch is not None:
             if r.kernel_class.patched_threshold:
-                kernel_line += f"  (branch {r.kernel_class.branch}, fixed at {r.kernel_class.patched_threshold})"
+                kernel_line += (
+                    f"  (branch {r.kernel_class.branch},"
+                    f" fixed at {r.kernel_class.patched_threshold})"
+                )
             else:
                 kernel_line += f"  (branch {r.kernel_class.branch})"
         lines.append(kernel_line)
@@ -154,30 +165,22 @@ def render_detection_text(r: DetectionResult) -> str:
     if r.in_container:
         lines.append("  Environment:  container")
 
-    actions = _recommended_actions(r)
+    upgrade_note = _kernel_upgrade_note(r)
     if r.verdict == Verdict.VULNERABLE:
         lines.append("")
         lines.append("Recommended actions:")
         lines.append("  1. Apply mitigation now:")
         lines.append("       sudo copyfail-guard fix")
-        if r.upgrade_command:
-            lines.append("  2. Upgrade kernel:")
-            lines.append(f"       {r.upgrade_command}")
-            lines.append("  3. Reboot")
-        else:
-            lines.append("  2. Reboot")
+        lines.append("  2. Update the kernel for a permanent fix:")
+        lines.append(f"       {upgrade_note}")
     elif r.verdict == Verdict.UNMITIGABLE_BUILTIN:
         lines.append("")
-        lines.append("Recommended actions (mitigation alone is insufficient):")
-        if r.upgrade_command:
-            lines.append("  1. Upgrade kernel:")
-            lines.append(f"       {r.upgrade_command}")
-        lines.append("  2. Reboot")
+        lines.append("Recommended action (mitigation alone is insufficient):")
+        lines.append(f"  {upgrade_note}")
     elif r.verdict == Verdict.MITIGATED:
         lines.append("")
-        lines.append("Mitigation in place. Plan a kernel upgrade for a permanent fix:")
-        if r.upgrade_command:
-            lines.append(f"  {r.upgrade_command}")
+        lines.append("Mitigation in place. For a permanent fix:")
+        lines.append(f"  {upgrade_note}")
 
     if r.notes:
         lines.append("")
@@ -208,7 +211,6 @@ class FixResult:
     success: bool
     dry_run: bool
     actions: tuple[FixAction, ...]
-    upgrade_command: str | None
     notes: tuple[str, ...]
 
 
@@ -228,11 +230,15 @@ def fix_to_dict(r: FixResult) -> dict:
             }
             for a in r.actions
         ],
-        "recommended_followup": (
-            [{"type": "upgrade", "command": r.upgrade_command}, {"type": "reboot"}]
-            if r.upgrade_command
-            else []
-        ),
+        "recommended_followup": [
+            {
+                "type": "upgrade_kernel",
+                "note": (
+                    "Mitigation is temporary. Update the kernel to a CVE-2026-31431-patched "
+                    "version using your distribution's normal update mechanism, then reboot."
+                ),
+            }
+        ],
         "notes": list(r.notes),
     }
 
@@ -262,11 +268,13 @@ def render_fix_text(r: FixResult) -> str:
             line += f"  — {a.error}"
         lines.append(line)
 
-    if r.upgrade_command:
+    if r.success and not any(a.type == "precheck" and not a.success for a in r.actions):
         lines.append("")
-        lines.append("Next steps for a permanent fix:")
-        lines.append(f"  1. {r.upgrade_command}")
-        lines.append("  2. Reboot")
+        lines.append("Next step for a permanent fix:")
+        lines.append(
+            "  Update the kernel to a CVE-2026-31431-patched version using your "
+            "distribution's normal update mechanism, then reboot."
+        )
 
     if r.notes:
         lines.append("")

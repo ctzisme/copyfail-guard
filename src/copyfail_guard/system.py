@@ -21,13 +21,15 @@ Runner = Callable[..., subprocess.CompletedProcess]
 @dataclass(frozen=True)
 class SystemContext:
     root: Path = field(default_factory=lambda: Path("/"))
-    uname_release: str = field(default_factory=lambda: os.uname().release if hasattr(os, "uname") else "")
+    uname_release: str = field(
+        default_factory=lambda: os.uname().release if hasattr(os, "uname") else ""
+    )
     runner: Runner = subprocess.run
     geteuid: Callable[[], int] = field(default_factory=lambda: getattr(os, "geteuid", lambda: 0))
     is_linux: bool = field(default_factory=lambda: platform.system() == "Linux")
 
     def under_root(self, *parts: str) -> Path:
-        """Resolve a path under :attr:`root` from one or more components, stripping leading ``/``."""
+        """Resolve a path under :attr:`root`, stripping leading ``/`` from each component."""
         cleaned = [p.lstrip("/") for p in parts]
         return self.root.joinpath(*cleaned)
 

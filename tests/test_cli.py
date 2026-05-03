@@ -21,6 +21,7 @@ def run_cli(*args: str, env_extra: dict | None = None) -> subprocess.CompletedPr
         text=True,
         env=env,
         timeout=30,
+        check=False,
     )
 
 

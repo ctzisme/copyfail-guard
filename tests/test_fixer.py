@@ -21,11 +21,15 @@ class FakeRunner:
         self.stdout = stdout
         self.stderr = stderr
 
-    def __call__(self, args, **kwargs):
+    def __call__(self, args, **_kwargs):
         self.calls.append(list(args))
         return subprocess.CompletedProcess(
             args=args, returncode=self.returncode, stdout=self.stdout, stderr=self.stderr
         )
+
+    def reset(self) -> None:
+        """Clear recorded calls."""
+        self.calls.clear()
 
 
 def _ctx(tmp: Path, *, runner=None, geteuid=lambda: 0, is_linux: bool = True) -> SystemContext:

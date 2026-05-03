@@ -35,3 +35,60 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 copyfail_guard = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",  # line-too-long; ruff format handles this, but allow longer fixture strings
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test functions use scoped imports (e.g. `import tempfile` inside a test method) intentionally,
+# and frozen-dataclass mutation tests assert on bare Exception because dataclasses raises
+# FrozenInstanceError which isn't worth importing.
+"tests/*" = ["B017", "RUF015"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pylint.main]
+# Treat src/ as the package root so pylint resolves imports correctly.
+source-roots = ["src"]
+
+[tool.pylint."messages control"]
+# Suppress style-only findings that are noise for a stdlib-only security tool:
+#   C0114/C0115/C0116  missing docstrings (covered by code comments)
+#   C0415              import-outside-toplevel in tests (scoped imports are intentional)
+#   R0902              too-many-instance-attributes (DI dataclasses need many fields)
+#   R0911              too-many-return-statements (decision-tree logic is by design)
+#   R0912/R0915        too-many-branches/statements (fixer & renderer are intentionally wide)
+#   R0913              too-many-arguments (SystemContext injection pattern)
+disable = [
+    "C0114",
+    "C0115",
+    "C0116",
+    "C0415",
+    "R0902",
+    "R0911",
+    "R0912",
+    "R0913",
+    "R0915",
+]
+
+[tool.pylint.format]
+max-line-length = 100

@@ -7,19 +7,20 @@ The fix is intentionally minimal — it does **not** call any package manager. I
 2. Calls ``modprobe -r algif_aead`` to drop the running module (best-effort).
 3. Appends an audit line to ``/var/log/copyfail-guard.log``.
 
-The recommended kernel upgrade command is returned in :class:`FixResult` so the
-CLI layer can print it for the user; this module never executes it.
+It does not call any package manager. Permanent remediation requires upgrading
+the kernel itself, which the user is expected to do via their distribution's
+normal update mechanism.
 """
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import os
 import subprocess
 import tempfile
 from pathlib import Path
 
-from .distro import detect_distro, upgrade_command
 from .modules import MODULE_NAME, is_in_container, is_loaded
 from .output import FixAction, FixResult
 from .system import SystemContext
@@ -54,10 +55,8 @@ def _atomic_write(path: Path, content: str) -> None:
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             tmp.unlink()
-        except FileNotFoundError:
-            pass
         raise
 
 
@@ -79,9 +78,6 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
     actions: list[FixAction] = []
     notes: list[str] = []
 
-    distro = detect_distro(ctx.root)
-    upgrade = upgrade_command(distro.family) if distro else upgrade_command("unknown")
-
     # ---- Pre-checks -------------------------------------------------------
     if not ctx.is_linux:
         actions.append(
@@ -93,7 +89,7 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
                 error="Host is not Linux; nothing to do.",
             )
         )
-        return FixResult(False, dry_run, tuple(actions), upgrade, ())
+        return FixResult(False, dry_run, tuple(actions), ())
 
     if is_in_container(ctx):
         actions.append(
@@ -105,7 +101,7 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
                 error="Running inside a container; mitigate on the host kernel instead.",
             )
         )
-        return FixResult(False, dry_run, tuple(actions), upgrade, ())
+        return FixResult(False, dry_run, tuple(actions), ())
 
     if not dry_run and ctx.geteuid() != 0:
         actions.append(
@@ -117,7 +113,7 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
                 error="Must run as root (or rerun with --dry-run to preview steps).",
             )
         )
-        return FixResult(False, dry_run, tuple(actions), upgrade, ())
+        return FixResult(False, dry_run, tuple(actions), ())
 
     actions.append(
         FixAction(
@@ -184,7 +180,7 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
                     error=str(e),
                 )
             )
-            return FixResult(False, dry_run, tuple(actions), upgrade, tuple(notes))
+            return FixResult(False, dry_run, tuple(actions), tuple(notes))
 
     # ---- Step 2: unload running module ------------------------------------
     was_loaded = is_loaded(ctx)
@@ -193,7 +189,8 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
             FixAction(
                 type="rmmod",
                 description=(
-                    f"Would unload {MODULE_NAME}" if was_loaded
+                    f"Would unload {MODULE_NAME}"
+                    if was_loaded
                     else f"Would attempt to unload {MODULE_NAME} (not currently loaded)"
                 ),
                 executed=False,
@@ -294,4 +291,4 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
         )
 
     success = all(a.success for a in actions if a.executed) or dry_run
-    return FixResult(success, dry_run, tuple(actions), upgrade, tuple(notes))
+    return FixResult(success, dry_run, tuple(actions), tuple(notes))

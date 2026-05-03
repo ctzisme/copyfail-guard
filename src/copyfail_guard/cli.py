@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .detector import EXIT_CODES, Verdict, detect
+from .detector import EXIT_CODES, detect
 from .fixer import apply_fix
 from .output import (
     VERDICT_LABELS,
@@ -47,7 +47,7 @@ def _infer_uname_release(root: Path) -> str | None:
     return None
 
 
-def _noop_runner(args, **kwargs):
+def _noop_runner(args, **_kwargs):
     """Stand-in subprocess runner for fixture mode — never executes anything real."""
     return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
 
@@ -132,9 +132,7 @@ def _run_detect(args: argparse.Namespace) -> int:
 
 def _run_fix(args: argparse.Namespace) -> int:
     if args.root != "/" and not args.dry_run:
-        sys.stderr.write(
-            "error: refusing to run fix against a custom --root without --dry-run.\n"
-        )
+        sys.stderr.write("error: refusing to run fix against a custom --root without --dry-run.\n")
         return 2
 
     ctx = build_context(args)

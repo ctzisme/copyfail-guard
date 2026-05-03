@@ -16,10 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .distro import DistroInfo, detect_distro, upgrade_command
-from .kernel import Classification, KernelVersion
+from .distro import DistroInfo, detect_distro
+from .kernel import Classification, KernelVersion, classify, parse_release
 from .kernel import Verdict as KernelVerdict
-from .kernel import classify, parse_release
 from .modules import ModuleStatus, gather_status, is_in_container
 from .system import SystemContext
 
@@ -52,7 +51,6 @@ class DetectionResult:
     kernel_class: Classification | None
     module: ModuleStatus | None
     in_container: bool
-    upgrade_command: str | None
     notes: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -64,7 +62,6 @@ def _make(
     kernel_class: Classification | None = None,
     module: ModuleStatus | None = None,
     in_container: bool = False,
-    upgrade_command: str | None = None,
     notes: list[str] | None = None,
 ) -> DetectionResult:
     return DetectionResult(
@@ -75,7 +72,6 @@ def _make(
         kernel_class=kernel_class,
         module=module,
         in_container=in_container,
-        upgrade_command=upgrade_command,
         notes=tuple(notes or ()),
     )
 
@@ -85,7 +81,6 @@ def detect(ctx: SystemContext) -> DetectionResult:
     notes: list[str] = []
 
     distro = detect_distro(ctx.root)
-    upgrade = upgrade_command(distro.family) if distro else upgrade_command("unknown")
 
     if not ctx.is_linux:
         notes.append("Not running on Linux; this CVE only affects the Linux kernel.")
@@ -107,7 +102,8 @@ def detect(ctx: SystemContext) -> DetectionResult:
 
     if kc.verdict == KernelVerdict.UNKNOWN_BRANCH:
         notes.append(
-            f"Kernel {kv.upstream} is outside the CVE-2026-31431 coverage table; manual review needed."
+            f"Kernel {kv.upstream} is outside the CVE-2026-31431 coverage table;"
+            " manual review needed."
         )
         return _make(
             Verdict.UNKNOWN,
@@ -144,7 +140,6 @@ def detect(ctx: SystemContext) -> DetectionResult:
             kernel_class=kc,
             module=module,
             in_container=in_container,
-            upgrade_command=upgrade,
             notes=notes,
         )
 
@@ -176,7 +171,6 @@ def detect(ctx: SystemContext) -> DetectionResult:
             kernel_class=kc,
             module=module,
             in_container=in_container,
-            upgrade_command=upgrade,
             notes=notes,
         )
 
@@ -187,6 +181,5 @@ def detect(ctx: SystemContext) -> DetectionResult:
         kernel_class=kc,
         module=module,
         in_container=in_container,
-        upgrade_command=upgrade,
         notes=notes,
     )

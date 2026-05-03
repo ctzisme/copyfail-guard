@@ -114,26 +114,3 @@ def detect_distro(root: Path) -> DistroInfo | None:
                 family=_family_from(distro_id, id_like),
             )
     return None
-
-
-# Upgrade command templates per family. Kept as single-line strings so they can be
-# pasted directly into a shell.
-_UPGRADE_COMMANDS = {
-    "debian": (
-        "sudo apt-get update && "
-        "sudo apt-get install --only-upgrade linux-image-generic linux-image-$(uname -r | sed 's/[^-]*-//')"
-    ),
-    "rhel": "sudo dnf upgrade --refresh kernel && sudo systemctl reboot",
-    "fedora": "sudo dnf upgrade --refresh kernel && sudo systemctl reboot",
-    "suse": "sudo zypper refresh && sudo zypper patch",
-}
-
-
-def upgrade_command(family: str) -> str:
-    """Return a shell command string the user can run to upgrade their kernel."""
-    if family in _UPGRADE_COMMANDS:
-        return _UPGRADE_COMMANDS[family]
-    return (
-        "Consult your distribution's security advisory for CVE-2026-31431 and "
-        "upgrade to a kernel at or above the documented patched version, then reboot."
-    )
