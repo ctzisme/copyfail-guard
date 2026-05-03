@@ -6,8 +6,12 @@
 [![pylint](https://img.shields.io/badge/pylint-10.00%2F10-brightgreen)](https://pylint.readthedocs.io/)
 
 A zero-dependency Python CLI that detects and temporarily mitigates
-[CVE-2026-31431](https://nvd.nist.gov/vuln/detail/CVE-2026-31431) ("Copy Fail")
+[CVE-2026-31431](https://copy.fail) ("Copy Fail")
 on Linux. Works on Debian/Ubuntu, RHEL/Rocky/AlmaLinux, Fedora, and SUSE.
+
+```sh
+pip install copyfail-guard
+```
 
 ## Background
 
