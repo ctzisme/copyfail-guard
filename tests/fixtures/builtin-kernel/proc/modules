@@ -1,0 +1,1 @@
+nf_conntrack 192512 4 xt_conntrack,nf_nat,nf_conntrack_netlink,nf_defrag_ipv6, Live 0x0000000000000000
