@@ -1,0 +1,2 @@
+algif_aead 20480 0 - Live 0x0000000000000000
+af_alg 40960 1 algif_aead, Live 0x0000000000000000

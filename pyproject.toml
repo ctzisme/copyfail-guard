@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "copyfail-guard"
+version = "0.1.0"
+description = "Detect and mitigate CVE-2026-31431 (Copy Fail) on Linux systems."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "copyfail-guard contributors" }]
+keywords = ["cve", "linux", "security", "kernel", "algif_aead", "copy-fail"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.urls]
+"Bug Reports" = "https://github.com/your-org/copyfail-guard/issues"
+
+[project.scripts]
+copyfail-guard = "copyfail_guard.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+copyfail_guard = ["py.typed"]
