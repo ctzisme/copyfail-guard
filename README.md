@@ -25,7 +25,7 @@ April 2026.
 ## Install
 
 ```sh
-pip install .
+pip install copyfail-guard
 ```
 
 Or run from a checkout without installing:
@@ -53,9 +53,10 @@ $ copyfail-guard
 Recommended actions:
   1. Apply mitigation now:
        sudo copyfail-guard fix
-  2. Upgrade kernel:
-       sudo apt-get update && sudo apt-get install --only-upgrade linux-image-generic ...
-  3. Reboot
+  2. Update the kernel for a permanent fix:
+       Update the kernel on this system to 6.12.85 or later (whatever your
+       distribution ships once it has integrated the CVE-2026-31431 fix), then
+       reboot.
 ```
 
 ### fix
@@ -68,10 +69,15 @@ $ sudo copyfail-guard fix
   [ ok ] Unloaded algif_aead  [algif_aead]
   [ ok ] Appended audit record  [/var/log/copyfail-guard.log]
 
-Next steps for a permanent fix:
-  1. sudo apt-get update && sudo apt-get install --only-upgrade linux-image-generic ...
-  2. Reboot
+Next step for a permanent fix:
+  Update the kernel to a CVE-2026-31431-patched version using your
+  distribution's normal update mechanism, then reboot.
 ```
+
+The fix is intentionally minimal: it writes a modprobe blacklist and unloads
+the module. It does **not** call your package manager. Updating the kernel
+itself is up to you — use `apt`/`dnf`/`zypper` (or your configuration
+management tool) however your environment normally handles security updates.
 
 Always preview with `--dry-run` first.
 

@@ -219,3 +219,5 @@ __marimo__/
 
 .claude/
 .codex/
+
+.DS_Store
