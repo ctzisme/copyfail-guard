@@ -4,7 +4,6 @@ from pathlib import Path
 from copyfail_guard.distro import (
     detect_distro,
     parse_os_release,
-    upgrade_command,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -12,12 +11,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 class ParseOsReleaseTests(unittest.TestCase):
     def test_strips_quotes_and_handles_unquoted(self):
-        text = '''
+        text = """
 ID=ubuntu
 NAME="Ubuntu"
 VERSION_ID="24.04"
 PRETTY_NAME='Ubuntu 24.04 LTS'
-'''
+"""
         d = parse_os_release(text)
         self.assertEqual(d["ID"], "ubuntu")
         self.assertEqual(d["NAME"], "Ubuntu")
@@ -88,18 +87,6 @@ class DetectDistroTests(unittest.TestCase):
             (etc / "os-release").write_text("ID=arch\nVERSION_ID=rolling\n")
             info = detect_distro(Path(tmp))
             self.assertEqual(info.family, "unknown")
-
-
-class UpgradeCommandTests(unittest.TestCase):
-    def test_each_family_has_a_command(self):
-        for family in ("debian", "rhel", "fedora", "suse"):
-            cmd = upgrade_command(family)
-            self.assertTrue(cmd)
-            self.assertIn("sudo", cmd)
-
-    def test_unknown_family_returns_generic_advice(self):
-        cmd = upgrade_command("unknown")
-        self.assertIn("CVE-2026-31431", cmd)
 
 
 if __name__ == "__main__":

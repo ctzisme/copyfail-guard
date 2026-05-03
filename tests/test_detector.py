@@ -25,14 +25,13 @@ class DetectVerdictMatrixTests(unittest.TestCase):
         self.assertEqual(r.distro.family, "debian")
         self.assertTrue(r.module.loaded)
         self.assertFalse(r.module.builtin)
-        self.assertIn("apt-get", r.upgrade_command)
+        self.assertEqual(r.kernel_class.patched_threshold, "6.12.85")
 
     def test_ubuntu_mitigated_with_install_false(self):
         r = detect(_ctx("ubuntu2404-mitigated", "6.8.0-50-generic"))
         self.assertEqual(r.verdict, Verdict.MITIGATED)
         self.assertEqual(r.exit_code, 0)
         self.assertEqual(r.module.blacklist.method, "install_false")
-        self.assertIsNotNone(r.upgrade_command)
         # Should NOT include the weak-blacklist note.
         self.assertFalse(any("more robust" in n for n in r.notes))
 
@@ -58,7 +57,9 @@ class DetectVerdictMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / "etc").mkdir()
-            (base / "etc" / "os-release").write_text("ID=ubuntu\nID_LIKE=debian\nVERSION_ID=24.04\n")
+            (base / "etc" / "os-release").write_text(
+                "ID=ubuntu\nID_LIKE=debian\nVERSION_ID=24.04\n"
+            )
             (base / "proc").mkdir()
             (base / "proc" / "modules").write_text("ext4 999 1 - Live 0\n")
             mod_dir = base / "lib" / "modules" / "6.6.200-generic"

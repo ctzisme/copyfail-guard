@@ -43,7 +43,7 @@ class ParseReleaseTests(unittest.TestCase):
 
 class ClassifyTests(unittest.TestCase):
     def _kv(self, *parts: int, suffix: str = "") -> KernelVersion:
-        major, minor, patch = (parts + (0, 0, 0))[:3]
+        major, minor, patch = (*parts, 0, 0, 0)[:3]
         raw = ".".join(str(p) for p in parts)
         if suffix:
             raw += "-" + suffix

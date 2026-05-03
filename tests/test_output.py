@@ -37,16 +37,23 @@ class DetectionRenderTests(unittest.TestCase):
         self.assertTrue(d["module"]["loaded"])
         self.assertFalse(d["mitigation"]["blacklisted"])
         types = [a["type"] for a in d["recommended_actions"]]
-        self.assertEqual(types, ["mitigate", "upgrade", "reboot"])
+        self.assertEqual(types, ["mitigate", "upgrade_kernel"])
+        upgrade = next(a for a in d["recommended_actions"] if a["type"] == "upgrade_kernel")
+        self.assertIn("note", upgrade)
+        self.assertNotIn("command", upgrade)
 
-    def test_text_includes_label_and_distro_and_command(self):
+    def test_text_includes_label_and_distro_and_upgrade_hint(self):
         r = detect(_ctx("ubuntu2404", "6.8.0-50-generic"))
         s = render_detection_text(r)
         self.assertIn("VULNERABLE", s)
         self.assertIn("Ubuntu", s)
         self.assertIn("6.8.0-50-generic", s)
-        self.assertIn("apt-get", s)
-        self.assertIn("Reboot", s)
+        # The text should give an upgrade hint, but no specific package-manager command.
+        self.assertIn("Update the kernel", s)
+        self.assertIn("6.12.85", s)
+        self.assertNotIn("apt-get", s)
+        self.assertNotIn("dnf", s)
+        self.assertNotIn("zypper", s)
 
     def test_mitigated_text_omits_mitigate_action(self):
         r = detect(_ctx("ubuntu2404-mitigated", "6.8.0-50-generic"))
@@ -54,6 +61,8 @@ class DetectionRenderTests(unittest.TestCase):
         self.assertIn("MITIGATED", s)
         self.assertNotIn("Apply mitigation now", s)
         self.assertIn("permanent fix", s)
+        self.assertIn("Update the kernel", s)
+        self.assertNotIn("apt-get", s)
 
     def test_builtin_text_emphasizes_upgrade(self):
         r = detect(_ctx("builtin-kernel", "6.8.0-builtin"))
@@ -96,7 +105,6 @@ class FixRenderTests(unittest.TestCase):
                     target="algif_aead",
                 ),
             ),
-            upgrade_command="sudo apt-get update && sudo apt-get install --only-upgrade linux-image-generic",
             notes=(),
         )
 
