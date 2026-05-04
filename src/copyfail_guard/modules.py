@@ -7,7 +7,8 @@ Four independent signals plus a synthesizing helper:
 - :func:`is_loadable` — has a ``.ko[.xz|.zst]`` line in ``modules.dep``
 - :func:`find_blacklist` — ``install <name> /bin/false`` or ``blacklist <name>`` in
   modprobe config (uses ``modprobe --showconfig`` when on the live system, falls
-  back to scanning ``/etc/modprobe.d/``, ``/usr/lib/modprobe.d/``, ``/run/modprobe.d/``).
+  back to scanning ``/etc/modprobe.d/``, ``/run/modprobe.d/``, ``/usr/lib/modprobe.d/``,
+  ``/lib/modprobe.d/`` in that order).
 """
 
 from __future__ import annotations

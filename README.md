@@ -5,9 +5,11 @@
 [![License](https://img.shields.io/pypi/l/copyfail-guard)](LICENSE)
 [![pylint](https://img.shields.io/badge/pylint-10.00%2F10-brightgreen)](https://pylint.readthedocs.io/)
 
-A zero-dependency Python CLI that detects and temporarily mitigates
-[CVE-2026-31431](https://copy.fail) ("Copy Fail")
-on Linux. Works on Debian/Ubuntu, RHEL/Rocky/AlmaLinux, Fedora, and SUSE.
+A zero-dependency Python CLI that checks whether a Linux host appears exposed to
+[CVE-2026-31431](https://copy.fail) ("Copy Fail") **without running an exploit**.
+It can also apply a conservative temporary mitigation when the affected component
+is loadable as a kernel module.
+Supports Debian/Ubuntu, RHEL/Rocky/AlmaLinux, Fedora, and SUSE.
 
 ```sh
 pip install copyfail-guard
@@ -20,14 +22,23 @@ CVE-2026-31431 is a logic bug in the `algif_aead` (AF_ALG AEAD socket) kernel
 interface that lets an unprivileged local user perform a controlled 4-byte write
 into the page cache of any readable file, leading to root privilege escalation.
 CVSS 7.8, present since kernel 4.14, patched in stable releases starting April 2026.
-A public PoC exists and the vulnerability is listed in CISA KEV.
+A public exploit exists and the vulnerability is listed in CISA KEV.
+
+## Why not just run an exploit?
+
+Some vulnerability checks amount to "run the exploit and see whether it works".
+That is not a great thing to do on production hosts.
+copyfail-guard takes a non-exploit approach. It does not try to trigger the bug,
+modify setuid binaries, or prove exploitability. Instead, it inspects host state
+(kernel version, module load status, modprobe configuration) and reports whether
+the machine appears exposed.
 
 ## What this tool does
 
 | Subcommand | Action |
 |---|---|
-| `detect` | Combines four signals (kernel version, `/proc/modules`, `modules.builtin`, modprobe config) into one of six verdicts |
-| `fix` | Atomically writes an `install algif_aead /bin/false` blacklist and runs `modprobe -r algif_aead` |
+| `detect` | Combines five signals (kernel version, `/proc/modules`, `modules.builtin`, `modules.dep`, modprobe config) into one of six verdicts |
+| `fix` | Atomically writes an `install algif_aead /bin/false` modprobe rule and tries to unload `algif_aead` |
 
 `fix` is intentionally minimal — it does **not** call your package manager.
 Permanent remediation requires upgrading the kernel through your distribution's
@@ -65,7 +76,8 @@ Recommended actions:
   1. Apply mitigation now:
        sudo copyfail-guard fix
   2. Update the kernel for a permanent fix:
-       Update the kernel on this system to 6.12.85 or later, then reboot.
+       Update the kernel on this system to 6.12.85 or later (whatever your
+       distribution ships once it has integrated the CVE-2026-31431 fix), then reboot.
 ```
 
 ### fix
@@ -74,10 +86,11 @@ Always preview with `--dry-run` before applying:
 
 ```
 $ sudo copyfail-guard --dry-run fix
-[copyfail-guard] fix — DRY RUN (no changes made)
-  [dry] Would write modprobe blacklist  [/etc/modprobe.d/cve-2026-31431-copyfail-guard.conf]
-  [dry] Would attempt to unload algif_aead (not currently loaded)
-  [dry] Would append audit record  [/var/log/copyfail-guard.log]
+[copyfail-guard] fix (dry-run) — OK
+  [ ok ] Pre-flight checks (Linux, host, root)
+  [skip] Would write modprobe blacklist  [/etc/modprobe.d/cve-2026-31431-copyfail-guard.conf]
+  [skip] Would attempt to unload algif_aead (not currently loaded)  [algif_aead]
+  [skip] Would append audit record  [/var/log/copyfail-guard.log]
 
 $ sudo copyfail-guard fix
 [copyfail-guard] fix — OK
@@ -90,6 +103,11 @@ Next step for a permanent fix:
   Update the kernel to a CVE-2026-31431-patched version using your
   distribution's normal update mechanism, then reboot.
 ```
+
+If the module is currently in use, the unload step may fail. In that case the
+persistent modprobe rule can still be installed successfully, and copyfail-guard
+will report the unload failure as a warning-style action record rather than
+pretending the module was removed.
 
 ### JSON output
 
@@ -110,9 +128,9 @@ $ copyfail-guard --json | jq '{verdict, kernel: .kernel.patched_threshold}'
 
 | Code | Meaning |
 |---|---|
-| `0` | Safe — verdict is `patched`, `mitigated`, or `not_applicable`; or fix succeeded |
+| `0` | Safe — verdict is `patched`, `mitigated`, or `not_applicable`; or the persistent fix step succeeded |
 | `1` | Vulnerable — verdict is `vulnerable` or `unmitigable_builtin` |
-| `2` | Error — state could not be determined, precondition refused, or fix failed |
+| `2` | Error — state could not be determined, precondition refused, or the persistent fix step failed |
 
 ## Verdicts
 
@@ -142,22 +160,28 @@ modules. Run copyfail-guard on the host directly.
 
 **Built-in `algif_aead`.** Some kernels compile `algif_aead` directly into the
 image (`CONFIG_CRYPTO_USER_API_AEAD=y`). modprobe mitigation has no effect in
-this configuration; the only remediation is a kernel upgrade. The tool reports
-`unmitigable_builtin` and skips the fix step.
+this configuration; the only remediation is a kernel upgrade. `detect` reports
+`unmitigable_builtin` in this case. Running `fix` will still install the modprobe
+rule (which prevents any co-existing loadable copy from loading) but the built-in
+instance is unaffected — kernel upgrade and reboot are the only real remedy.
 
-**`blacklist` vs `install … /bin/false`.** Both directives block auto-loading,
-but `install algif_aead /bin/false` cannot be overridden by an explicit
-`modprobe algif_aead` invocation. copyfail-guard always installs the stronger
-form. If your system already has a plain `blacklist` directive, the tool reports
-`mitigated` but emits a note recommending the upgrade.
+**`blacklist` vs `install … /bin/false`.** Both directives block ordinary
+auto-loading, but `install algif_aead /bin/false` is stronger because it also
+blocks ordinary explicit `modprobe algif_aead` invocations. A sufficiently
+privileged administrator can still bypass modprobe policy, for example by using
+low-level module loading tools or special modprobe flags. copyfail-guard always
+installs the stronger form. If your system already has a plain `blacklist`
+directive, the tool reports `mitigated` but emits a note recommending the upgrade.
 
-**SELinux/AppArmor.** Writes to `/etc/modprobe.d/` on RHEL inherit
-`system_u:object_r:modules_conf_t:s0` from the parent directory — no manual
-relabel is needed.
+**SELinux/AppArmor.** Writes to `/etc/modprobe.d/` on RHEL normally inherit
+`system_u:object_r:modules_conf_t:s0` from the parent directory, so no manual
+relabel should usually be needed for the file copyfail-guard writes.
 
-**initramfs.** `algif_aead` is not included in the boot image on any major
-distribution, so running `update-initramfs -u` or `dracut -f` is not required
-after installing the blacklist.
+**initramfs.** `algif_aead` is not normally included in the boot image on major
+distributions, so copyfail-guard does not run `update-initramfs -u` or
+`dracut -f` after installing the modprobe rule. If your distribution or local
+build includes `algif_aead` in initramfs, follow your distribution's
+kernel/module guidance.
 
 ## Development
 
