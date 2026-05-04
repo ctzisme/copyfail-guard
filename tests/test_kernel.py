@@ -84,6 +84,13 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(classify(self._kv(6, 19, 11)).verdict, Verdict.IN_RANGE)
         self.assertEqual(classify(self._kv(6, 19, 12)).verdict, Verdict.PATCHED)
 
+    def test_versions_past_last_arc_are_patched(self):
+        # 6.20 / 6.99 etc. — past the last vulnerable arc but before 7.0. The
+        # fix carried forward, so these should classify as PATCHED rather than
+        # falling through to UNKNOWN_BRANCH.
+        self.assertEqual(classify(self._kv(6, 20, 0)).verdict, Verdict.PATCHED)
+        self.assertEqual(classify(self._kv(6, 50, 999)).verdict, Verdict.PATCHED)
+
     def test_7_0_rc_is_vulnerable(self):
         kv = KernelVersion(major=7, minor=0, patch=0, suffix="rc3", raw="7.0.0-rc3")
         self.assertEqual(classify(kv).verdict, Verdict.IN_RANGE)

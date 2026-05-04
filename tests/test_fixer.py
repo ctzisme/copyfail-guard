@@ -162,6 +162,9 @@ class PrecheckRefusalTests(unittest.TestCase):
 
 class RmmodFailureTests(unittest.TestCase):
     def test_rmmod_failure_on_loaded_module_records_failure(self):
+        # rmmod is best-effort: if the module is in use, the persistent
+        # blacklist write is what actually mitigates across reboots, so the
+        # overall fix should still report success — just with a note.
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -172,11 +175,15 @@ class RmmodFailureTests(unittest.TestCase):
             (base / "proc" / "modules").write_text("algif_aead 16384 1 - Live 0\n")
             runner = FakeRunner(returncode=1, stderr="Module is in use")
             r = apply_fix(_ctx(base, runner=runner))
-            self.assertFalse(r.success)
+            # The individual rmmod action records the failure ...
             rm = [a for a in r.actions if a.type == "rmmod"][0]
             self.assertFalse(rm.success)
             self.assertIn("in use", rm.error)
             self.assertTrue(any("still loaded" in n for n in r.notes))
+            # ... but overall success holds because the blacklist landed.
+            self.assertTrue(r.success)
+            wb = [a for a in r.actions if a.type == "write_blacklist"][0]
+            self.assertTrue(wb.success)
 
     def test_rmmod_failure_when_not_loaded_is_ok(self):
         import tempfile

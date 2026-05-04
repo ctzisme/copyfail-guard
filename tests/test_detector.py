@@ -36,22 +36,9 @@ class DetectVerdictMatrixTests(unittest.TestCase):
         self.assertFalse(any("more robust" in n for n in r.notes))
 
     def test_ubuntu_kernel_above_threshold_is_patched(self):
-        # 6.6.137 is the patched threshold of the 6.6 branch — but our fixture's lib/modules
-        # dir is named 6.8.0-50-generic, so we have to pretend uname says 6.6.137. We'll
-        # craft a scenario with a fixture that reports a patched release.
-        # Quick reuse: use ubuntu2404-patched fixture which has only modules.dep entry but
-        # we'll claim the running kernel is 6.6.200.
-        r = detect(
-            SystemContext(
-                root=FIXTURES / "ubuntu2404-patched",
-                uname_release="6.6.200-generic",
-                is_linux=True,
-            )
-        )
-        # ubuntu2404-patched fixture has the dep entry under 6.8.0-50-generic, so for
-        # release 6.6.200 the loadable check returns False (different modules dir).
-        # That yields not_applicable. Let's instead set up a temp fixture.
-
+        # Patched-branch case: claim the running kernel is 6.6.200, well past the
+        # 6.6.137 fix point. Build a synthetic fixture whose lib/modules layout
+        # matches the claimed release so the loadable-module check works.
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:

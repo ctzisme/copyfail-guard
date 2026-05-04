@@ -153,9 +153,14 @@ def find_blacklist(ctx: SystemContext, name: str = MODULE_NAME) -> BlacklistResu
                     return BlacklistResult(True, "install_redirect", None)
                 if re.search(rf"^\s*blacklist\s+{re.escape(name)}\s*$", r.stdout, re.MULTILINE):
                     return BlacklistResult(True, "blacklist", None)
-                # modprobe ran but found nothing — still scan conf dirs as a safety net.
+                # modprobe ran successfully and reported no blacklist for this module.
+                # Trust that — modprobe knows about include directives and override
+                # precedence, and a stray .conf in a directory it doesn't read would
+                # not actually block module loading at runtime.
+                return BlacklistResult(False, None, None)
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             pass
+    # modprobe binary unavailable or errored — fall back to scanning conf dirs.
     return _scan_conf_dirs(ctx, name)
 
 

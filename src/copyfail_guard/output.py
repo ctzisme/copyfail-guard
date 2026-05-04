@@ -165,22 +165,21 @@ def render_detection_text(r: DetectionResult) -> str:
     if r.in_container:
         lines.append("  Environment:  container")
 
-    upgrade_note = _kernel_upgrade_note(r)
     if r.verdict == Verdict.VULNERABLE:
         lines.append("")
         lines.append("Recommended actions:")
         lines.append("  1. Apply mitigation now:")
         lines.append("       sudo copyfail-guard fix")
         lines.append("  2. Update the kernel for a permanent fix:")
-        lines.append(f"       {upgrade_note}")
+        lines.append(f"       {_kernel_upgrade_note(r)}")
     elif r.verdict == Verdict.UNMITIGABLE_BUILTIN:
         lines.append("")
         lines.append("Recommended action (mitigation alone is insufficient):")
-        lines.append(f"  {upgrade_note}")
+        lines.append(f"  {_kernel_upgrade_note(r)}")
     elif r.verdict == Verdict.MITIGATED:
         lines.append("")
         lines.append("Mitigation in place. For a permanent fix:")
-        lines.append(f"  {upgrade_note}")
+        lines.append(f"  {_kernel_upgrade_note(r)}")
 
     if r.notes:
         lines.append("")

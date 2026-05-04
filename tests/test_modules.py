@@ -128,6 +128,47 @@ class FindBlacklistTests(unittest.TestCase):
             self.assertEqual(r.method, "install_redirect")
 
 
+class FindBlacklistShowconfigTests(unittest.TestCase):
+    """Cover the live-system path: ``modprobe --showconfig`` is authoritative
+    when it succeeds — we must NOT also scan conf dirs (that would let a stale
+    .conf in a directory modprobe ignores produce a false positive)."""
+
+    def _runner_returning(self, stdout: str, returncode: int = 0):
+        import subprocess
+
+        def runner(args, **_kwargs):
+            return subprocess.CompletedProcess(
+                args=args, returncode=returncode, stdout=stdout, stderr=""
+            )
+
+        return runner
+
+    def test_showconfig_says_no_blacklist_overrides_dir_scan(self):
+        # Context: root=/ + is_linux=True triggers the showconfig path.
+        # If showconfig returns no rules, find_blacklist must report False
+        # even if a stray conf file would suggest otherwise.
+        ctx = SystemContext(
+            root=Path("/"),
+            uname_release="6.8.0-test",
+            runner=self._runner_returning("# nothing relevant here\n"),
+            is_linux=True,
+        )
+        r = find_blacklist(ctx, "algif_aead")
+        self.assertFalse(r.blacklisted)
+        self.assertIsNone(r.method)
+
+    def test_showconfig_finds_install_false(self):
+        ctx = SystemContext(
+            root=Path("/"),
+            uname_release="6.8.0-test",
+            runner=self._runner_returning("install algif_aead /bin/false\n"),
+            is_linux=True,
+        )
+        r = find_blacklist(ctx, "algif_aead")
+        self.assertTrue(r.blacklisted)
+        self.assertEqual(r.method, "install_false")
+
+
 class GatherStatusTests(unittest.TestCase):
     def test_combined(self):
         s = gather_status(_ctx("ubuntu2404", "6.8.0-50-generic"))

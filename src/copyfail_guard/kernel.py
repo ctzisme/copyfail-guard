@@ -105,4 +105,9 @@ def classify(kv: KernelVersion) -> Classification:
         if arc_start <= v <= vuln_max:
             return Classification(Verdict.IN_RANGE, branch, threshold)
 
+    # No arc matched. If v is newer than the highest known vulnerable point,
+    # assume the fix carried forward into later branches (e.g. 6.20+ before 7.0).
+    last_vuln_max = VULNERABLE_ARCS[-1][1]
+    if v > last_vuln_max:
+        return Classification(Verdict.PATCHED, None, None)
     return Classification(Verdict.UNKNOWN_BRANCH, None, None)

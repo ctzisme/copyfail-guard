@@ -290,5 +290,12 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
             )
         )
 
-    success = all(a.success for a in actions if a.executed) or dry_run
+    # Overall success is determined by the persistent steps only. The blacklist
+    # write is what actually mitigates across reboots; rmmod is best-effort
+    # (the module may be in use and refuse to unload), and the audit log is
+    # informational. Both are reported as individual action records, but
+    # neither flips overall success.
+    persistent_types = {"precheck", "write_blacklist"}
+    persistent_actions = [a for a in actions if a.executed and a.type in persistent_types]
+    success = all(a.success for a in persistent_actions) or dry_run
     return FixResult(success, dry_run, tuple(actions), tuple(notes))

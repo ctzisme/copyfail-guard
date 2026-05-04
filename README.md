@@ -11,6 +11,7 @@ on Linux. Works on Debian/Ubuntu, RHEL/Rocky/AlmaLinux, Fedora, and SUSE.
 
 ```sh
 pip install copyfail-guard
+copyfail-guard
 ```
 
 ## Background
