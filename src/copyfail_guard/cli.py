@@ -25,13 +25,15 @@ from pathlib import Path
 
 from . import __version__
 from .detector import EXIT_CODES, detect
-from .fixer import apply_fix
+from .fixer import apply_fix, apply_reset
 from .output import (
     VERDICT_LABELS,
     render_detection_json,
     render_detection_text,
     render_fix_json,
     render_fix_text,
+    render_reset_json,
+    render_reset_text,
 )
 from .system import SystemContext
 
@@ -110,6 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command")
     sub.add_parser("detect", help="check system status (default)")
     sub.add_parser("fix", help="apply modprobe-level mitigation")
+    sub.add_parser("reset", help="remove the modprobe conf file installed by fix")
     return p
 
 
@@ -146,12 +149,30 @@ def _run_fix(args: argparse.Namespace) -> int:
     return 0 if result.success else 2
 
 
+def _run_reset(args: argparse.Namespace) -> int:
+    if args.root != "/" and not args.dry_run:
+        sys.stderr.write("error: refusing to run reset against a custom --root without --dry-run.\n")
+        return 2
+
+    ctx = build_context(args)
+    result = apply_reset(ctx, dry_run=args.dry_run)
+
+    if args.json:
+        sys.stdout.write(render_reset_json(result) + "\n")
+    else:
+        sys.stdout.write(render_reset_text(result) + "\n")
+
+    return 0 if result.success else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     command = args.command or "detect"
     if command == "fix":
         return _run_fix(args)
+    if command == "reset":
+        return _run_reset(args)
     return _run_detect(args)
 
 

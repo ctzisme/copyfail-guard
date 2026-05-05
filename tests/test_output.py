@@ -129,6 +129,17 @@ class FixRenderTests(unittest.TestCase):
         d2 = json.loads(json.dumps(d1))
         self.assertEqual(d1, d2)
 
+    def test_json_includes_recommended_followup_on_success(self):
+        d = json.loads(render_fix_json(self._result(success=True)))
+        self.assertIn("recommended_followup", d)
+        self.assertEqual(d["recommended_followup"][0]["type"], "upgrade_kernel")
+
+    def test_json_omits_recommended_followup_on_failure(self):
+        # When fix fails (e.g. container/non-root refusal), the mitigation was
+        # never applied, so "Mitigation is temporary" is misleading.
+        d = json.loads(render_fix_json(self._result(success=False)))
+        self.assertNotIn("recommended_followup", d)
+
 
 if __name__ == "__main__":
     unittest.main()

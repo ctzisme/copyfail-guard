@@ -201,5 +201,25 @@ class RmmodFailureTests(unittest.TestCase):
             self.assertTrue(rm.success)
 
 
+    def test_rmmod_success_when_not_loaded_says_nothing_to_unload(self):
+        # modprobe -r exits 0 even when the module is not loaded.
+        # The action description should not say "Unloaded" in that case.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / "etc").mkdir()
+            (base / "etc" / "os-release").write_text("ID=ubuntu\n")
+            (base / "proc").mkdir()
+            (base / "proc" / "modules").write_text("ext4 999 1 - Live 0\n")
+            runner = FakeRunner(returncode=0)
+            r = apply_fix(_ctx(base, runner=runner))
+            self.assertTrue(r.success)
+            rm = [a for a in r.actions if a.type == "rmmod"][0]
+            self.assertTrue(rm.success)
+            self.assertNotIn("Unloaded", rm.description)
+            self.assertIn("not loaded", rm.description)
+
+
 if __name__ == "__main__":
     unittest.main()

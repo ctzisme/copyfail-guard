@@ -39,6 +39,7 @@ the machine appears exposed.
 |---|---|
 | `detect` | Combines five signals (kernel version, `/proc/modules`, `modules.builtin`, `modules.dep`, modprobe config) into one of six verdicts |
 | `fix` | Atomically writes an `install algif_aead /bin/false` modprobe rule and tries to unload `algif_aead` |
+| `reset` | Removes the modprobe rule installed by `fix` (run after upgrading to a patched kernel) |
 
 `fix` is intentionally minimal — it does **not** call your package manager.
 Permanent remediation requires upgrading the kernel through your distribution's
@@ -59,7 +60,7 @@ PYTHONPATH=src python3 -m copyfail_guard detect
 ## Usage
 
 ```
-copyfail-guard [--json] [--dry-run] [--quiet] [detect | fix]
+copyfail-guard [--json] [--dry-run] [--quiet] [detect | fix | reset]
 ```
 
 ### detect (default)
@@ -145,12 +146,23 @@ $ copyfail-guard --json | jq '{verdict, kernel: .kernel.patched_threshold}'
 
 ## Removing the mitigation
 
-After upgrading to a patched kernel:
+After upgrading to a patched kernel, use the `reset` subcommand to remove the
+modprobe rule installed by `fix`:
 
-```sh
-sudo rm /etc/modprobe.d/cve-2026-31431-copyfail-guard.conf
-sudo reboot
 ```
+$ sudo copyfail-guard --dry-run reset
+[copyfail-guard] reset (dry-run) — OK
+  [skip] Would remove /etc/modprobe.d/cve-2026-31431-copyfail-guard.conf
+
+$ sudo copyfail-guard reset
+[copyfail-guard] reset — OK
+  [ ok ] Removed /etc/modprobe.d/cve-2026-31431-copyfail-guard.conf
+
+Reboot to allow algif_aead to load again if needed.
+```
+
+`reset` is idempotent — if the file is already absent it exits 0 with a
+"nothing to do" message. Then reboot.
 
 ## Notes
 
@@ -182,19 +194,6 @@ distributions, so copyfail-guard does not run `update-initramfs -u` or
 `dracut -f` after installing the modprobe rule. If your distribution or local
 build includes `algif_aead` in initramfs, follow your distribution's
 kernel/module guidance.
-
-## Development
-
-```sh
-git clone https://github.com/ctzisme/copyfail-guard
-cd copyfail-guard
-PYTHONPATH=src python3 -m unittest discover tests   # stdlib only, no pytest needed
-```
-
-The test suite uses fixture filesystems under `tests/fixtures/` and runs fully
-on macOS without a real Linux environment. Each fixture provides a synthetic
-`/etc/os-release`, `/proc/modules`, and
-`/lib/modules/<rel>/{modules.dep,modules.builtin}` tree.
 
 ## License
 

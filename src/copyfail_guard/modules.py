@@ -104,6 +104,13 @@ def is_loadable(ctx: SystemContext, name: str = MODULE_NAME) -> bool:
 
 
 def _scan_conf_dirs(ctx: SystemContext, name: str) -> BlacklistResult:
+    # NOTE: this is an approximation of modprobe's true behaviour. Real modprobe
+    # merges *all* conf directories and applies rules in filename-lexicographic
+    # order, so a later file can override an earlier one. This fallback (used only
+    # when `modprobe --showconfig` is unavailable) returns the first match found
+    # and does not model inter-file overrides. In practice, having both a block
+    # rule and an override in separate files is rare; `modprobe --showconfig` is
+    # authoritative when available.
     install_re = re.compile(rf"^\s*install\s+{re.escape(name)}\s+(\S+)")
     blacklist_re = re.compile(rf"^\s*blacklist\s+{re.escape(name)}\s*$")
     for sub in CONF_DIRS:

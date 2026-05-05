@@ -152,7 +152,7 @@ def render_detection_text(r: DetectionResult) -> str:
         if m.blacklist.blacklisted:
             method_label = {
                 "install_false": "install /bin/false",
-                "install_redirect": "install (custom redirect)",
+                "install_redirect": "install (redirect)",
                 "blacklist": "blacklist (weak)",
             }.get(m.blacklist.method or "", m.blacklist.method or "")
             mit_line = f"  Mitigation:   {method_label}"
@@ -229,15 +229,22 @@ def fix_to_dict(r: FixResult) -> dict:
             }
             for a in r.actions
         ],
-        "recommended_followup": [
+        **(
             {
-                "type": "upgrade_kernel",
-                "note": (
-                    "Mitigation is temporary. Update the kernel to a CVE-2026-31431-patched "
-                    "version using your distribution's normal update mechanism, then reboot."
-                ),
+                "recommended_followup": [
+                    {
+                        "type": "upgrade_kernel",
+                        "note": (
+                            "Mitigation is temporary. Update the kernel to a "
+                            "CVE-2026-31431-patched version using your distribution's "
+                            "normal update mechanism, then reboot."
+                        ),
+                    }
+                ]
             }
-        ],
+            if r.success
+            else {}
+        ),
         "notes": list(r.notes),
     }
 
@@ -267,7 +274,7 @@ def render_fix_text(r: FixResult) -> str:
             line += f"  — {a.error}"
         lines.append(line)
 
-    if r.success and not any(a.type == "precheck" and not a.success for a in r.actions):
+    if r.success:
         lines.append("")
         lines.append("Next step for a permanent fix:")
         lines.append(
@@ -280,5 +287,60 @@ def render_fix_text(r: FixResult) -> str:
         lines.append("Notes:")
         for n in r.notes:
             lines.append(f"  - {n}")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Reset rendering
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ResetResult:
+    success: bool
+    dry_run: bool
+    removed: bool   # True when the conf file was present and removed (or would be)
+    path: str
+    error: str | None = None
+
+
+def reset_to_dict(r: ResetResult) -> dict:
+    d: dict = {
+        "cve": CVE_ID,
+        "success": r.success,
+        "dry_run": r.dry_run,
+        "removed": r.removed,
+        "path": r.path,
+    }
+    if r.error:
+        d["error"] = r.error
+    return d
+
+
+def render_reset_json(r: ResetResult) -> str:
+    return json.dumps(reset_to_dict(r), indent=2, sort_keys=False)
+
+
+def render_reset_text(r: ResetResult) -> str:
+    header = "[copyfail-guard] reset"
+    if r.dry_run:
+        header += " (dry-run)"
+    header += " — " + ("OK" if r.success else "FAILED")
+    lines = [header]
+
+    if not r.success:
+        lines.append(f"  [fail] {r.error}")
+    elif r.dry_run:
+        if r.removed:
+            lines.append(f"  [skip] Would remove {r.path}")
+        else:
+            lines.append(f"  [skip] {r.path} not present (nothing to do)")
+    elif r.removed:
+        lines.append(f"  [ ok ] Removed {r.path}")
+        lines.append("")
+        lines.append("Reboot to allow algif_aead to load again if needed.")
+    else:
+        lines.append(f"  [ ok ] {r.path} was not present (nothing to do)")
 
     return "\n".join(lines)

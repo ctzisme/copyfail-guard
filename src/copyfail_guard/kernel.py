@@ -87,6 +87,9 @@ def classify(kv: KernelVersion) -> Classification:
 
     if v == (7, 0, 0):
         rc = re.search(r"rc(\d+)", kv.suffix, re.IGNORECASE) if kv.suffix else None
+        # The CVE-2026-31431 fix landed in mainline during the 7.0-rc7 window.
+        # rc1–rc6 pre-date the fix; rc7+ and the final release carry it.
+        # Update this bound if the upstream merge window shifts.
         if rc and 1 <= int(rc.group(1)) <= 6:
             return Classification(Verdict.IN_RANGE, "7.0-rc", "7.0")
         return Classification(Verdict.PATCHED, "7.0", "7.0")

@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 from .modules import MODULE_NAME, is_in_container, is_loaded
-from .output import FixAction, FixResult
+from .output import FixAction, FixResult, ResetResult
 from .system import SystemContext
 
 CONF_FILENAME = "cve-2026-31431-copyfail-guard.conf"
@@ -50,9 +50,9 @@ def _atomic_write(path: Path, content: str) -> None:
     fd, tmp_str = tempfile.mkstemp(prefix=".copyfail-guard-", dir=str(path.parent))
     tmp = Path(tmp_str)
     try:
+        os.fchmod(fd, 0o644)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
-        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
@@ -211,7 +211,11 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
                 actions.append(
                     FixAction(
                         type="rmmod",
-                        description=f"Unloaded {MODULE_NAME}",
+                        description=(
+                            f"Unloaded {MODULE_NAME}"
+                            if was_loaded
+                            else f"{MODULE_NAME} was not loaded; nothing to unload"
+                        ),
                         executed=True,
                         success=True,
                         target=MODULE_NAME,
@@ -299,3 +303,52 @@ def apply_fix(ctx: SystemContext, *, dry_run: bool = False) -> FixResult:
     persistent_actions = [a for a in actions if a.executed and a.type in persistent_types]
     success = all(a.success for a in persistent_actions) or dry_run
     return FixResult(success, dry_run, tuple(actions), tuple(notes))
+
+
+def apply_reset(ctx: SystemContext, *, dry_run: bool = False) -> ResetResult:
+    """Remove the modprobe conf file installed by :func:`apply_fix`.
+
+    This is the reverse of :func:`apply_fix` step 1.  It does not attempt to
+    reload ``algif_aead`` — the caller should reboot after confirming the kernel
+    has been upgraded to a patched version.
+    """
+    conf = _conf_path(ctx)
+    path_str = str(conf)
+
+    if not ctx.is_linux:
+        return ResetResult(False, dry_run, False, path_str, "Host is not Linux; nothing to do.")
+
+    if is_in_container(ctx):
+        return ResetResult(
+            False,
+            dry_run,
+            False,
+            path_str,
+            "Running inside a container; reset on the host kernel instead.",
+        )
+
+    if not dry_run and ctx.geteuid() != 0:
+        return ResetResult(
+            False,
+            dry_run,
+            False,
+            path_str,
+            "Must run as root (or rerun with --dry-run to preview steps).",
+        )
+
+    present = conf.exists()
+
+    if dry_run:
+        return ResetResult(True, dry_run, present, path_str)
+
+    if not present:
+        _audit(ctx, f"reset: {path_str} not present, nothing to do")
+        return ResetResult(True, dry_run, False, path_str)
+
+    try:
+        conf.unlink()
+    except OSError as e:
+        return ResetResult(False, dry_run, False, path_str, str(e))
+
+    _audit(ctx, f"reset: removed {path_str}")
+    return ResetResult(True, dry_run, True, path_str)
