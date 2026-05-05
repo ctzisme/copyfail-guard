@@ -151,7 +151,9 @@ def _run_fix(args: argparse.Namespace) -> int:
 
 def _run_reset(args: argparse.Namespace) -> int:
     if args.root != "/" and not args.dry_run:
-        sys.stderr.write("error: refusing to run reset against a custom --root without --dry-run.\n")
+        sys.stderr.write(
+            "error: refusing to run reset against a custom --root without --dry-run.\n"
+        )
         return 2
 
     ctx = build_context(args)
